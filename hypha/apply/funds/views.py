@@ -78,6 +78,7 @@ from .models import (
 from .permissions import is_user_has_access_to_view_submission
 from .tables import (
     AdminSubmissionsTable,
+    LeaderboardFilter,
     LeaderboardTable,
     ReviewerSubmissionsTable,
     RoundsFilter,
@@ -1165,6 +1166,7 @@ class SubmissionResultView(FilterView):
 
 @method_decorator(login_required, name='dispatch')
 class ReviewLeaderboard(SingleTableMixin, FilterView):
+    filterset_class = LeaderboardFilter
     table_class = LeaderboardTable
     table_pagination = False
     template_name = 'funds/review_leaderboard.html'
