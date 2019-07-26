@@ -364,6 +364,7 @@ class RoundsFilter(filters.FilterSet):
 
 class LeaderboardTable(tables.Table):
     full_name = tables.Column(verbose_name="Reviewer")
+    most_recent = tables.Column(orderable=False)
 
     class Meta:
         fields = [
@@ -375,7 +376,6 @@ class LeaderboardTable(tables.Table):
             'most_recent',
         ]
         model = User
-        orderable = False
 
     def render_most_recent(self, record):
         review = (Review.objects.filter(author__reviewer=record)
