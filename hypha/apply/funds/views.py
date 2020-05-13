@@ -1,7 +1,9 @@
 from copy import copy
+from datetime import timedelta
 from statistics import mean
 
 from django.contrib import messages
+from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required, permission_required
 from django.contrib.auth.mixins import UserPassesTestMixin
 from django.contrib.humanize.templatetags.humanize import intcomma
@@ -10,6 +12,7 @@ from django.db.models import Count, F, Q
 from django.http import FileResponse, Http404, HttpResponseRedirect
 from django.shortcuts import get_object_or_404
 from django.urls import reverse_lazy
+from django.utils import timezone
 from django.utils.decorators import method_decorator
 from django.utils.safestring import mark_safe
 from django.utils.translation import ugettext_lazy as _
@@ -40,6 +43,7 @@ from hypha.apply.determinations.views import (
 )
 from hypha.apply.projects.forms import CreateProjectForm
 from hypha.apply.projects.models import Project
+from hypha.apply.review.models import Review
 from hypha.apply.review.views import ReviewContextMixin
 from hypha.apply.users.decorators import staff_required
 from hypha.apply.utils.pdfs import draw_submission_content, make_pdf
@@ -75,6 +79,9 @@ from .models import (
 from .permissions import is_user_has_access_to_view_submission
 from .tables import (
     AdminSubmissionsTable,
+    LeaderboardDetailTable,
+    LeaderboardFilter,
+    LeaderboardTable,
     ReviewerSubmissionsTable,
     RoundsFilter,
     RoundsTable,
@@ -1157,3 +1164,55 @@ class SubmissionResultView(FilterView):
                 values.append(value)
 
         return {'total': sum(values), 'average': round(mean(values))}
+
+
+@method_decorator(login_required, name='dispatch')
+class ReviewLeaderboard(UserPassesTestMixin, SingleTableMixin, FilterView):
+    filterset_class = LeaderboardFilter
+    filter_action = ''
+    table_class = LeaderboardTable
+    table_pagination = False
+    template_name = 'funds/review_leaderboard.html'
+
+    def get_context_data(self, **kwargs):
+        search_term = self.request.GET.get('query')
+
+        return super().get_context_data(
+            search_term=search_term,
+            filter_action=self.filter_action,
+            **kwargs,
+        )
+
+    def get_table_data(self):
+        ninety_days_ago = timezone.now() - timedelta(days=90)
+        this_year = timezone.now().year
+        last_year = timezone.now().year - 1
+        return super().get_table_data().filter(submissions_reviewer__isnull=False).annotate(
+            total=Count('assignedreviewers__review'),
+            ninety_days=Count('assignedreviewers__review', filter=Q(assignedreviewers__review__created_at__date__gte=ninety_days_ago)),
+            this_year=Count('assignedreviewers__review', filter=Q(assignedreviewers__review__created_at__year=this_year)),
+            last_year=Count('assignedreviewers__review', filter=Q(assignedreviewers__review__created_at__year=last_year)),
+        )
+
+    def test_func(self):
+        return self.request.user.is_apply_staff or self.request.user.is_reviewer
+
+
+@method_decorator(login_required, name='dispatch')
+class ReviewLeaderboardDetail(UserPassesTestMixin, SingleTableMixin, ListView):
+    model = Review
+    table_class = LeaderboardDetailTable
+    paginator_class = LazyPaginator
+    table_pagination = {'per_page': 25}
+    template_name = 'funds/review_leaderboard_detail.html'
+
+    def get_context_data(self, **kwargs):
+        User = get_user_model()
+        obj = User.objects.get(pk=self.kwargs.get('pk'))
+        return super().get_context_data(object=obj, **kwargs)
+
+    def get_table_data(self):
+        return super().get_table_data().filter(author__reviewer_id=self.kwargs.get('pk')).select_related('submission')
+
+    def test_func(self):
+        return self.request.user.is_apply_staff or self.request.user.is_reviewer
