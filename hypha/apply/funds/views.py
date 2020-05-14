@@ -17,6 +17,7 @@ from django.utils.decorators import method_decorator
 from django.utils.safestring import mark_safe
 from django.utils.translation import ugettext_lazy as _
 from django.views import View
+from django.views.decorators.cache import cache_page
 from django.views.generic import (
     CreateView,
     DeleteView,
@@ -1110,6 +1111,7 @@ class SubmissionDetailPDFView(SingleObjectMixin, View):
         )
 
 
+@method_decorator(cache_page(60), name='dispatch')
 @method_decorator(staff_required, name='dispatch')
 class SubmissionResultView(FilterView):
     template_name = 'funds/submissions_result.html'
@@ -1157,6 +1159,8 @@ class SubmissionResultView(FilterView):
     def get_submission_values(self):
         import re
         values = []
+        total = 0
+        average = 0
         for submission in self.object_list:
             try:
                 value = submission.data('value')
@@ -1177,7 +1181,11 @@ class SubmissionResultView(FilterView):
             finally:
                 values.append(value)
 
-        return {'total': sum(values), 'average': round(mean(values))}
+        if values:
+            total = sum(values)
+            average = round(mean(values))
+
+        return {'total': total, 'average': average}
 
 
 @method_decorator(login_required, name='dispatch')
