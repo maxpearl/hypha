@@ -79,7 +79,7 @@ class ApplicationBase(EmailForm, WorkflowStreamForm):  # type: ignore
 
     guide_link = models.URLField(blank=True, max_length=255, help_text=_('Link to the apply guide.'))
 
-    slack_channel = models.CharField(blank=True, max_length=128, help_text=_('The slack #channel for notifications.'))
+    slack_channel = models.CharField(blank=True, max_length=128, help_text=_('The slack #channel for notifications. If left empty, notifications will go to the default channel.'))
 
     objects = PageManager.from_queryset(ApplicationBaseManager)()
 
@@ -187,6 +187,7 @@ class RoundBase(WorkflowStreamForm, SubmittableStreamForm):  # type: ignore
         # Forms comes from parental key in models/forms.py
         ReadOnlyInlinePanel('forms', help_text="Copied from the fund."),
         ReadOnlyInlinePanel('review_forms', help_text="Copied from the fund."),
+        ReadOnlyInlinePanel('determination_forms', help_text="Copied from the fund."),
     ]
 
     edit_handler = TabbedInterface([
@@ -227,6 +228,7 @@ class RoundBase(WorkflowStreamForm, SubmittableStreamForm):  # type: ignore
             # Would be nice to do this using model clusters as part of the __init__
             self._copy_forms('forms')
             self._copy_forms('review_forms')
+            self._copy_forms('determination_forms')
 
     def _copy_forms(self, field):
         for form in getattr(self.get_parent().specific, field).all():
